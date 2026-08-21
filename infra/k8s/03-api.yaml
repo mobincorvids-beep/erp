@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-api
+  namespace: erp
+spec:
+  replicas: 3 # HPA (below) manages this after the first rollout — this is just the floor
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0 # never drop below the requested replica count mid-deploy — a POS terminal mid-checkout should never see 502s from a rollout
+      maxSurge: 1
+  selector:
+    matchLabels: { app: erp-api }
+  template:
+    metadata:
+      labels: { app: erp-api }
+    spec:
+      # Spread replicas across nodes (and zones, if the cluster has them)
+      # rather than letting the scheduler stack them — losing one node
+      # should cost at most a fraction of capacity, never the whole tier.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: erp-api } }
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: erp-api } }
+      containers:
+        - name: api
+          image: erp-api:latest # replace with your real registry/tag — this repo doesn't publish one
+          ports: [{ containerPort: 4000 }]
+          envFrom:
+            - configMapRef: { name: erp-api-config }
+            - secretRef: { name: erp-api-secrets }
+          resources:
+            # Real starting numbers, not placeholders left at "figure it
+            # out later" — a checkout request is mostly I/O-wait (Mongo
+            # round-trips), not CPU-bound, so CPU is sized modestly and
+            # the HPA (04-hpa.yaml) reacts to actual load; memory is sized
+            # for Node's default heap plus headroom for the Mongoose
+            # connection pool and in-flight request buffers.
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          # Liveness: process-alive only (see server.js's own comment on
+          # /healthz) — must never depend on Mongo/Redis, or a downstream
+          # outage turns into a restart-crash-loop across the whole tier
+          # instead of a controlled, visible "not ready" state.
+          livenessProbe:
+            httpGet: { path: /healthz, port: 4000 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          # Readiness: dependency-checked (Mongo + Redis) — a replica that
+          # fails this is taken out of Service rotation without being
+          # killed, so a transient Mongo blip drains traffic instead of
+          # restarting containers that would just fail again immediately.
+          readinessProbe:
+            httpGet: { path: /readyz, port: 4000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          # SIGTERM handling in server.js's gracefulShutdown() needs real
+          # time to drain in-flight requests before the pod is killed.
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "5"] } # give the Service/ingress time to stop routing here before the process starts shutting down
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-api
+  namespace: erp
+spec:
+  selector: { app: erp-api }
+  ports:
+    - port: 80
+      targetPort: 4000
+  type: ClusterIP

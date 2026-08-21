@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-client
+  namespace: erp
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: erp-client }
+  template:
+    metadata:
+      labels: { app: erp-client }
+    spec:
+      containers:
+        - name: client
+          image: erp-client:latest # built from client/Dockerfile — bake the real VITE_API_BASE_URL (your public API/ingress hostname) in at build time, it's compiled into the static bundle, not runtime-configurable
+          ports: [{ containerPort: 80 }]
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }
+          livenessProbe:
+            httpGet: { path: /, port: 80 }
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-client
+  namespace: erp
+spec:
+  selector: { app: erp-client }
+  ports: [{ port: 80, targetPort: 80 }]
+---
+# In practice, serve the built client bundle from a CDN (CloudFront,
+# Cloudflare, Fastly) fronting object storage instead of Pods at all —
+# nginx.conf's own comment notes every asset is content-hashed and safe to
+# cache aggressively/immutably, which is exactly what a CDN edge wants.
+# This Deployment is the honest fallback for a cluster without a CDN in
+# front of it yet, not the recommended shape at real scale — see
+# infra/k8s/README.md.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: erp-client-pdb
+  namespace: erp
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app: erp-client } }

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-worker
+  namespace: erp
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: { app: erp-worker }
+  template:
+    metadata:
+      labels: { app: erp-worker }
+    spec:
+      containers:
+        - name: worker
+          image: erp-api:latest # same image as the API — src/worker.js is just a different entrypoint into the same codebase, see package.json's "worker" script
+          command: ["node", "src/worker.js"]
+          envFrom:
+            - configMapRef: { name: erp-api-config }
+            - secretRef: { name: erp-api-secrets }
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits: { cpu: "500m", memory: "384Mi" }
+          # No HTTP server in this process — liveness has nothing to probe
+          # over HTTP. exec-probing "is the event loop responsive" is the
+          # honest equivalent: a Node process wedged on a synchronous
+          # infinite loop would fail to fork this command promptly.
+          livenessProbe:
+            exec: { command: ["node", "-e", "process.exit(0)"] }
+            periodSeconds: 30
+            timeoutSeconds: 10
+      terminationGracePeriodSeconds: 30 # matches worker.js's own shutdown timeout — let an in-flight job (e.g. a batch of webhook deliveries) actually finish rather than killing it mid-attempt

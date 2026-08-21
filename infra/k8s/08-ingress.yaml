@@ -1,0 +1,45 @@
+# One example against ingress-nginx — swap for your cluster's real
+# ingress controller/annotations (ALB Ingress Controller, GKE's, etc).
+# TLS termination, WAF rules, and DDoS protection belong at this layer or
+# above it (a CDN/edge in front of the cluster) — this app's own
+# express-rate-limit (src/middleware/rateLimit.js) is a second, inner
+# layer against abusive *authenticated* traffic, not a substitute for
+# edge-level protection against a volumetric attack.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: erp-ingress
+  namespace: erp
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m" # matches express.json({ limit: '2mb' }) in server.js — keep these in sync, the ingress would otherwise reject a valid request the app itself would have accepted, or vice versa
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts: ["app.example.com", "api.example.com"]
+      secretName: erp-tls
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: erp-api, port: { number: 80 } } }
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: erp-client, port: { number: 80 } } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: erp-api-pdb
+  namespace: erp
+spec:
+  # Never let a voluntary disruption (node drain, cluster upgrade) take
+  # more than a third of the API tier out at once — the other two-thirds
+  # keep serving real checkouts while a rolling node upgrade proceeds.
+  minAvailable: 66%
+  selector: { matchLabels: { app: erp-api } }

@@ -1,0 +1,64 @@
+# Elastic horizontal scaling for the API tier — the actual mechanism, not
+# just an aspiration, by which this platform absorbs a real traffic spike
+# (a promotional sale across many tenants at once, month-end payroll runs)
+# without either falling over or permanently over-provisioning for peak.
+# Safe specifically BECAUSE the API tier is stateless (see nginx-lb.conf's
+# comment) — a new replica is immediately as capable as any other, no
+# warm-up of local state required.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: erp-api
+  namespace: erp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: erp-api
+  minReplicas: 3
+  maxReplicas: 50 # real ceiling, not unlimited — protects the Mongo cluster's own connection limit (see MONGO_MAX_POOL_SIZE's comment in 01-configmap.yaml) from being exceeded by an autoscaler that doesn't know about it
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 65 }
+    - type: Resource
+      resource:
+        name: memory
+        target: { type: Utilization, averageUtilization: 75 }
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30 # react fast to a real spike
+      policies: [{ type: Percent, value: 100, periodSeconds: 60 }] # can double every minute under sustained load
+    scaleDown:
+      stabilizationWindowSeconds: 300 # shrink slowly — don't thrash replicas up and down across a bursty few minutes
+      policies: [{ type: Percent, value: 25, periodSeconds: 60 }]
+---
+# The worker tier scales on queue depth, not CPU — a worker can be nearly
+# idle CPU-wise while a large backlog of webhook deliveries or FBR
+# retries sits queued (most of a job's wall-clock time is waiting on an
+# external HTTP response, not computing). Requires the "prometheus-adapter
+# + a BullMQ queue-depth exporter" pattern (or KEDA's native Redis/BullMQ
+# scaler, which is the simpler real-world choice) to feed a genuine
+# external metric — sketched here as the intended shape; wire the actual
+# metrics pipeline to your cluster's real setup before relying on this one.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: erp-worker
+  namespace: erp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: erp-worker
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+    # Add an External metric here (KEDA ScaledObject is the more common
+    # real-world path for this specific case — see infra/k8s/README.md)
+    # once queue-depth metrics are wired into your cluster's monitoring.

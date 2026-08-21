@@ -1,0 +1,55 @@
+# A single-instance Redis, suitable for a dev/staging cluster or as a
+# reference for what the API/worker expect to connect to. NOT what a
+# production deployment serving real scale should run as its actual
+# Redis — see infra/k8s/README.md for why (no HA, no persIstence
+# guarantees beyond this one pod's disk, a lost pod means every
+# in-flight rate-limit window and job momentarily resets). Point
+# REDIS_URL at a managed Redis (ElastiCache, Memorystore, Redis Cloud) or
+# a properly operated Redis Sentinel/Cluster setup in production instead
+# — this manifest is the "it works, wire it up correctly before it
+# matters" version, held to the same honesty standard as the rest of this
+# platform's own documentation.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: erp-redis
+  namespace: erp
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: erp-redis }
+  template:
+    metadata:
+      labels: { app: erp-redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+          ports: [{ containerPort: 6379 }]
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "320Mi" }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: erp-redis-data }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: erp-redis-data
+  namespace: erp
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: erp-redis
+  namespace: erp
+spec:
+  selector: { app: erp-redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
