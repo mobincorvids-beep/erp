@@ -25,10 +25,15 @@ USER node
 
 EXPOSE 4000
 
-# Matches GET /health in src/server.js — used by docker-compose's
-# healthcheck and by any orchestrator that wants to know the container is
-# actually serving, not just that the process is alive.
+# Matches GET /healthz in src/server.js — deliberately liveness, not
+# readiness (see the comment on that route): this answers "is the process
+# itself alive", with no dependency checks, so a transient MongoDB/Redis
+# blip doesn't cause Docker/an orchestrator to kill and restart an
+# otherwise-healthy container, which would only make a downstream outage
+# worse. /readyz (dependency-checked) is what a load balancer or k8s
+# readiness probe should point at instead, to stop routing traffic without
+# restarting anything.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:4000/healthz', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "src/server.js"]

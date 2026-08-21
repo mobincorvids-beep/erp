@@ -16,6 +16,27 @@ const ApprovalRequest = require('../models/ApprovalRequest');
 const LeaveRequest = require('../models/LeaveRequest');
 const StockCount = require('../models/StockCount');
 const Notification = require('../models/Notification');
+const cache = require('../lib/cache');
+
+// Every function below is company-wide, not user-specific (even
+// cashierDashboard — see its own comment), and each one runs several real
+// aggregation queries (P&L, balance sheet, stock valuation, top
+// products/customers...) over Sale/Voucher/StockLevel — collections that
+// grow without bound as a company operates. This is the single
+// most-viewed screen in the app; at real scale, several people at the
+// same company reloading or auto-refreshing their dashboard every few
+// seconds would otherwise re-run the exact same expensive aggregation
+// once per person, per load. A 45s cache (company-wide, not per-viewer)
+// means every concurrent viewer at one company shares one computation
+// per interval instead of one each — standard practice for BI dashboards,
+// where "accurate as of under a minute ago" is the norm, not a compromise.
+// Deliberately NOT applied to commonWidgets() below — a user's own
+// pending-approval/unread-notification counts need to feel live, not lag
+// a shared cache window.
+const DASHBOARD_CACHE_TTL_SECONDS = 45;
+function cached(role, companyId, fn) {
+  return cache.getOrSet(`dashboard:${role}:${companyId}`, DASHBOARD_CACHE_TTL_SECONDS, fn);
+}
 
 const today = () => new Date();
 const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
@@ -109,13 +130,13 @@ async function getDashboard(companyId, { userId, roleId, permissions }) {
 
   const hasAny = (...keys) => permissions === null || keys.some((k) => permissions.includes(k) || permissions.includes(k.split('.')[0] + '.*') || permissions.includes('*'));
 
-  if (permissions === null || hasAny('accounting.view', 'accounts.manage')) sections.owner = await ownerDashboard(companyId);
-  if (hasAny('sales.view')) sections.salesManager = await salesManagerDashboard(companyId);
-  if (hasAny('inventory.adjust', 'inventory.transfer')) sections.warehouseManager = await warehouseManagerDashboard(companyId);
-  if (hasAny('hr.manage', 'payroll.post')) sections.hrManager = await hrManagerDashboard(companyId);
-  if (hasAny('pos.sell') && !sections.owner) sections.cashier = await cashierDashboard(companyId, userId); // only shown as the PRIMARY view for someone who ISN'T already getting the full owner view — a cashier-only role, not an admin who also happens to have pos.sell
+  if (permissions === null || hasAny('accounting.view', 'accounts.manage')) sections.owner = await cached('owner', companyId, () => ownerDashboard(companyId));
+  if (hasAny('sales.view')) sections.salesManager = await cached('salesManager', companyId, () => salesManagerDashboard(companyId));
+  if (hasAny('inventory.adjust', 'inventory.transfer')) sections.warehouseManager = await cached('warehouseManager', companyId, () => warehouseManagerDashboard(companyId));
+  if (hasAny('hr.manage', 'payroll.post')) sections.hrManager = await cached('hrManager', companyId, () => hrManagerDashboard(companyId));
+  if (hasAny('pos.sell') && !sections.owner) sections.cashier = await cached('cashier', companyId, () => cashierDashboard(companyId, userId)); // only shown as the PRIMARY view for someone who ISN'T already getting the full owner view — a cashier-only role, not an admin who also happens to have pos.sell
 
-  if (Object.keys(sections).length === 0) sections.cashier = await cashierDashboard(companyId, userId); // genuinely no matching permission set — fall back to the smallest, safest slice rather than show nothing at all
+  if (Object.keys(sections).length === 0) sections.cashier = await cached('cashier', companyId, () => cashierDashboard(companyId, userId)); // genuinely no matching permission set — fall back to the smallest, safest slice rather than show nothing at all
 
   return { ...common, sections };
 }

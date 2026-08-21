@@ -7,12 +7,15 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "worker:dev": "nodemon src/worker.js",
     "seed": "node src/seed.js",
     "seed:admin": "node src/seedPlatformAdmin.js",
     "smoke-test": "node src/smokeTest.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.34.10",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
@@ -22,13 +25,16 @@
     "express-validator": "^7.3.2",
     "helmet": "^7.1.0",
     "hpp": "^0.2.3",
+    "ioredis": "^5.4.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
     "morgan": "^1.10.0",
     "nanoid": "^3.3.7",
     "otplib": "^13.4.1",
     "pdfkit": "^0.19.1",
-    "qrcode": "^1.5.4"
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "rate-limit-redis": "^4.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

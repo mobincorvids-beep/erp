@@ -207,12 +207,39 @@ async function checkout(input) {
     // slow webhook delivery can never affect the sale that already
     // completed successfully — same "the real operation matters more than
     // the notification about it" principle the low-stock check already established.
-    try {
-      await require('./webhookService').fire(companyId, 'sale.completed', {
-        saleId: sale._id, invoiceNumber: sale.invoiceNumber, totalAmount: sale.totalAmount, branchId: sale.branchId,
-      });
-    } catch (err) {
-      console.error('Webhook delivery for sale.completed failed (sale itself still succeeded):', err.message);
+    //
+    // WEBHOOK_ASYNC gates a second, real fix on top of that: with it unset
+    // (the default, and the exact behavior this smoke test already relies
+    // on), delivery is still `await`ed here — a slow or unreachable
+    // subscriber URL still stalls this checkout's HTTP response, since
+    // `await` on a promise that isn't inside the transaction doesn't make
+    // it non-blocking, only non-transactional. At real scale that's a
+    // genuine problem: one dead webhook subscriber can stall every
+    // cashier's checkout at that company. Setting WEBHOOK_ASYNC=true
+    // routes delivery through the job queue (src/queue/queue.js) instead —
+    // checkout enqueues (a fast local write, or a durable Redis job with
+    // its own retry/backoff when REDIS_URL is configured) and returns
+    // immediately, with delivery happening in the separate worker process.
+    // Left opt-in rather than the new default because flipping it changes
+    // observable timing this smoke test's webhook assertions depend on
+    // (it re-reads WebhookSubscription immediately after checkout returns,
+    // expecting delivery to have already happened synchronously) — this
+    // sandbox has no live MongoDB to re-run that test against, so the
+    // honest thing is to ship the fix as opt-in, verified-safe-by-default,
+    // rather than flip the default on a change nobody could re-verify here.
+    if (process.env.WEBHOOK_ASYNC === 'true') {
+      require('../queue/queue').enqueue('webhook.fire', {
+        companyId, eventType: 'sale.completed',
+        payload: { saleId: sale._id, invoiceNumber: sale.invoiceNumber, totalAmount: sale.totalAmount, branchId: sale.branchId },
+      }).catch((err) => console.error('Failed to enqueue sale.completed webhook (sale itself still succeeded):', err.message));
+    } else {
+      try {
+        await require('./webhookService').fire(companyId, 'sale.completed', {
+          saleId: sale._id, invoiceNumber: sale.invoiceNumber, totalAmount: sale.totalAmount, branchId: sale.branchId,
+        });
+      } catch (err) {
+        console.error('Webhook delivery for sale.completed failed (sale itself still succeeded):', err.message);
+      }
     }
 
     return sale;

@@ -11,8 +11,13 @@ const hpp = require('hpp');
 const connectDB = require('./config/db');
 const routes = require('./routes');
 const { generalLimiter } = require('./middleware/rateLimit');
+const requestId = require('./middleware/requestId');
+const { pingRedis } = require('./config/redis');
+
+require('./queue/jobs'); // side-effecting require: registers job handlers so enqueue()'s inline fallback (no Redis, or a job fired before a separate worker exists) has something to run
 
 const app = express();
+app.use(requestId);
 
 // Required when running behind a reverse proxy / load balancer (Nginx,
 // an ELB, Cloudflare) — without it, express-rate-limit and anything else
@@ -59,7 +64,28 @@ app.use(hpp());
 
 app.use('/api/v1', generalLimiter);
 
-app.get('/health', (req, res) => res.json({ status: 'ok', mongoConnected: require('mongoose').connection.readyState === 1 }));
+// Liveness — "is the process up at all", answered with zero dependency
+// checks. A load balancer/orchestrator uses this to decide whether to
+// restart the container; it should never fail just because MongoDB is
+// briefly unreachable (that's what readiness is for, and killing a
+// healthy process over a downstream blip only makes an outage worse).
+app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', mongoConnected: require('mongoose').connection.readyState === 1 })); // kept for backward compatibility with anything already polling this path
+
+// Readiness — "can this replica actually serve real traffic right now."
+// Checks the dependencies every request actually needs. A load balancer
+// (or k8s Service) should stop routing to a replica that fails this,
+// which is exactly the mechanism a rolling deploy needs to avoid sending
+// requests to an instance that's still connecting to Mongo, and the
+// mechanism that takes a replica whose Mongo connection dropped out of
+// rotation instead of returning 500s to real users.
+app.get('/readyz', async (req, res) => {
+  const mongoReady = require('mongoose').connection.readyState === 1;
+  const redisReady = await pingRedis();
+  const ready = mongoReady && redisReady;
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not-ready', mongo: mongoReady, redis: redisReady });
+});
+
 app.use('/api/v1', routes);
 
 // Every unmatched route gets the same JSON shape as every other error in
