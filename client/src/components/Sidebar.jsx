@@ -28,35 +28,41 @@ const ITEM_ICONS = {
 const SECTION_ICONS = { Sell: ShoppingCart, Stock: Package, Money: Wallet, People: Users, Insights: BarChart3, Industry: Building2 };
 
 // Grouped by workflow proximity, not by backend module name — a cashier
-// thinks "Sell", not "PosSaleService".
+// thinks "Sell", not "PosSaleService". Each item optionally declares
+// `requires` — a permission key checked against the real, backend-enforced
+// permission catalog (src/constants/permissions.js) via useAuth().can().
+// An item with no `requires` is available to anyone signed in (checkout
+// itself needs pos.sell to actually complete a sale server-side, but
+// browsing to it isn't gated — genuinely open items like Sales history
+// were left ungated deliberately here rather than guessed at).
 const SECTIONS = [
   {
     label: 'Sell',
     items: [
-      { to: '/pos', label: 'Checkout' },
-      { to: '/sales', label: 'Sales history' },
-      { to: '/sales-workflow', label: 'Quotations & orders' },
+      { to: '/pos', label: 'Checkout', requires: 'pos.sell' },
+      { to: '/sales', label: 'Sales history', requires: 'sales.view' },
+      { to: '/sales-workflow', label: 'Quotations & orders', requires: 'sales.view' },
       { to: '/appointments', label: 'Appointments' },
-      { to: '/service-orders', label: 'Service orders' },
+      { to: '/service-orders', label: 'Service orders', requires: 'service_orders.manage' },
     ],
   },
   {
     label: 'Stock',
     items: [
       { to: '/products', label: 'Products' },
-      { to: '/purchases', label: 'Purchase orders' },
-      { to: '/stock-transfers', label: 'Transfers' },
-      { to: '/stock-counts', label: 'Stocktakes' },
-      { to: '/manufacturing', label: 'Manufacturing' },
+      { to: '/purchases', label: 'Purchase orders', requires: 'purchases.create' },
+      { to: '/stock-transfers', label: 'Transfers', requires: 'inventory.transfer' },
+      { to: '/stock-counts', label: 'Stocktakes', requires: 'inventory.adjust' },
+      { to: '/manufacturing', label: 'Manufacturing', requires: 'manufacturing.manage' },
     ],
   },
   {
     label: 'Money',
     items: [
-      { to: '/expenses', label: 'Expenses' },
-      { to: '/banking', label: 'Banking' },
+      { to: '/expenses', label: 'Expenses', requires: 'expenses.submit' },
+      { to: '/banking', label: 'Banking', requires: 'banking.manage' },
       { to: '/projects', label: 'Projects' },
-      { to: '/reports', label: 'Reports' },
+      { to: '/reports', label: 'Reports', requires: 'reports.view' },
     ],
   },
   {
@@ -64,27 +70,45 @@ const SECTIONS = [
     items: [
       { to: '/customers', label: 'Customers' },
       { to: '/suppliers', label: 'Suppliers' },
-      { to: '/team', label: 'Team' },
-      { to: '/hr', label: 'HR & Payroll' },
-      { to: '/crm', label: 'CRM' },
-      { to: '/loyalty', label: 'Loyalty' },
+      { to: '/team', label: 'Team', requires: 'users.manage' },
+      { to: '/hr', label: 'HR & Payroll', requires: 'hr.manage' },
+      { to: '/crm', label: 'CRM', requires: 'crm.manage' },
+      { to: '/loyalty', label: 'Loyalty', requires: 'loyalty.manage' },
     ],
   },
   {
     label: 'Insights',
     items: [
-      { to: '/ai-insights', label: 'Insights' },
-      { to: '/ecommerce', label: 'E-commerce' },
+      { to: '/ai-insights', label: 'Insights', requires: 'reports.view' },
+      { to: '/ecommerce', label: 'E-commerce', requires: 'ecommerce.manage' },
     ],
   },
   {
     label: 'Industry',
-    items: INDUSTRY_MODULES.map(({ path, label }) => ({ to: path, label })),
+    // Gated by the company's ACTIVATED modules (Company.activeModules,
+    // set by a platform admin at onboarding — see requireActiveModule.js
+    // on the backend), not by user permission — every one of these was
+    // previously shown to every user at every company regardless of which
+    // industries that company actually operates in, meaning a Retail-only
+    // tenant saw working-looking nav links to Jewelry, Hospital, School...
+    // that would 404/403 the moment any of their real API calls ran.
+    items: INDUSTRY_MODULES.map(({ key, path, label }) => ({ to: path, label, requiresModule: key })),
   },
 ];
 
 export function Sidebar({ mobileOpen, onClose }) {
-  const { company, logout, user } = useAuth();
+  const { company, logout, user, can } = useAuth();
+
+  const visibleSections = SECTIONS
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (item.requiresModule) return company?.activeModules?.includes(item.requiresModule);
+        if (item.requires) return can(item.requires);
+        return true;
+      }),
+    }))
+    .filter((section) => section.items.length > 0); // an empty section header with nothing under it is worse than no header at all
 
   const content = (
     <>
@@ -100,7 +124,7 @@ export function Sidebar({ mobileOpen, onClose }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3">
-        {SECTIONS.map((section) => {
+        {visibleSections.map((section) => {
           const SectionIcon = SECTION_ICONS[section.label] || Circle;
           return (
             <div key={section.label} className="mb-4">
