@@ -55,6 +55,20 @@ const KEYS = {
   // be visible to every role that can see ordinary documents.
   VENDOR_COMPANY_DOCUMENTS_VIEW: 'documents.vendor_company.view',
   VENDOR_COMPANY_DOCUMENTS_MANAGE: 'documents.vendor_company.manage',
+
+  // --- Sales & Marketing suite ---
+  LEADS_MANAGE: 'leads.manage',
+  OPPORTUNITIES_MANAGE: 'opportunities.manage',
+  SALES_ACTIVITIES_MANAGE: 'sales_activities.manage',
+  TERRITORIES_MANAGE: 'territories.manage',
+  PRICING_MANAGE: 'pricing.manage',
+  COMMISSIONS_MANAGE: 'commissions.manage',
+  SALES_TARGETS_MANAGE: 'sales_targets.manage',
+  MARKETING_MANAGE: 'marketing.manage', // campaigns, automation, landing pages, segments — distinct from the narrower crm.manage (which only ever covered simple SMS/email blasts)
+  LOYALTY_PROMOTIONS_MANAGE: 'loyalty_promotions.manage', // coupons, promotions, referrals — kept separate from LOYALTY_MANAGE (points/tiers) since a cashier redeeming a coupon shouldn't need the broader loyalty-program-configuration permission
+  PARTNERS_MANAGE: 'partners.manage',
+  SUBSCRIPTIONS_MANAGE: 'subscriptions.manage',
+  CONTRACTS_MANAGE: 'contracts.manage',
 };
 
 // Human-readable catalog for the role-editor UI — grouped so checkboxes
@@ -144,6 +158,23 @@ const CATALOG = [
     group: 'Integrations',
     items: [
       { key: KEYS.ECOMMERCE_MANAGE, label: 'Configure the e-commerce integration and webhook token' },
+    ],
+  },
+  {
+    group: 'Sales & Marketing',
+    items: [
+      { key: KEYS.LEADS_MANAGE, label: 'Manage leads' },
+      { key: KEYS.OPPORTUNITIES_MANAGE, label: 'Manage the sales pipeline (opportunities)' },
+      { key: KEYS.SALES_ACTIVITIES_MANAGE, label: 'Manage sales activities and follow-ups for others' },
+      { key: KEYS.TERRITORIES_MANAGE, label: 'Manage sales territories' },
+      { key: KEYS.PRICING_MANAGE, label: 'Manage price lists and pricing rules' },
+      { key: KEYS.COMMISSIONS_MANAGE, label: 'Manage commission plans and view commission payouts' },
+      { key: KEYS.SALES_TARGETS_MANAGE, label: 'Set and review sales targets' },
+      { key: KEYS.MARKETING_MANAGE, label: 'Manage campaigns, marketing automation, and landing pages' },
+      { key: KEYS.LOYALTY_PROMOTIONS_MANAGE, label: 'Manage promotions, coupons, and referral programs' },
+      { key: KEYS.PARTNERS_MANAGE, label: 'Manage dealers, distributors, and reseller partners' },
+      { key: KEYS.SUBSCRIPTIONS_MANAGE, label: 'Manage subscription plans and billing' },
+      { key: KEYS.CONTRACTS_MANAGE, label: 'Manage sales contracts' },
     ],
   },
 ];

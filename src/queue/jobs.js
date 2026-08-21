@@ -37,6 +37,23 @@ registerHandler('sweep.documentExpiry', async ({ companyId }) => {
   return documentService.checkExpiringDocuments(companyId);
 });
 
+registerHandler('sweep.salesFollowUpReminders', async ({ companyId }) => {
+  const salesActivityService = require('../services/salesMarketing/salesActivityService');
+  const notificationService = require('../services/notificationService');
+  const due = await salesActivityService.findDueTodayOrOverdue(companyId);
+  for (const activity of due) {
+    if (!activity.assignedTo) continue; // an unassigned reminder has nobody real to notify — skip rather than guess a recipient
+    await notificationService.notify({
+      companyId, userId: activity.assignedTo, type: 'sales_follow_up_due',
+      title: `Follow-up due: ${activity.subject}`,
+      message: `${activity.type.replace('_', ' ')} for ${activity.entityType} was due ${activity.dueAt.toDateString()}.`,
+      entityType: activity.entityType, entityId: activity.entityId,
+    });
+    await salesActivityService.markReminded(activity._id);
+  }
+  return { remindersSent: due.length };
+});
+
 registerHandler('sweep.fbrRetry', async ({ companyId }) => {
   const fbrService = require('../services/fbrService');
   const Company = require('../models/Company');
@@ -81,10 +98,12 @@ async function scheduleRepeatingJobs() {
   }
   await q.add('sweep.fanout.documentExpiry', {}, { repeat: { pattern: '0 6 * * *' }, jobId: 'sweep-document-expiry-daily' }); // 06:00 UTC daily
   await q.add('sweep.fanout.fbrRetry', {}, { repeat: { pattern: '*/15 * * * *' }, jobId: 'sweep-fbr-retry-15min' }); // every 15 minutes — FBR outages are usually short
-  logger.info('Scheduled repeating sweeps: document-expiry (daily), FBR-retry (every 15m).');
+  await q.add('sweep.fanout.salesFollowUpReminders', {}, { repeat: { pattern: '*/30 * * * *' }, jobId: 'sweep-sales-followups-30min' }); // every 30 minutes — a follow-up reminder an hour late is still useful, no need for tighter polling
+  logger.info('Scheduled repeating sweeps: document-expiry (daily), FBR-retry (every 15m), sales follow-up reminders (every 30m).');
 }
 
 registerHandler('sweep.fanout.documentExpiry', () => enqueueForAllActiveCompanies('sweep.documentExpiry'));
 registerHandler('sweep.fanout.fbrRetry', () => enqueueForAllActiveCompanies('sweep.fbrRetry'));
+registerHandler('sweep.fanout.salesFollowUpReminders', () => enqueueForAllActiveCompanies('sweep.salesFollowUpReminders'));
 
 module.exports = { scheduleRepeatingJobs, enqueueForAllActiveCompanies };
