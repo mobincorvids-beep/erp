@@ -36,6 +36,7 @@ router.use('/pricing', require('./pricingRoutes'));
 router.use('/commissions', require('./commissionRoutes'));
 router.use('/sales-targets', require('./salesTargetRoutes'));
 router.use('/forecast', require('./forecastRoutes'));
+router.use('/field-visits', require('./fieldVisitRoutes'));
 router.use('/units', require('./unitRoutes'));
 router.use('/budgets', require('./budgetRoutes'));
 router.use('/purchase-orders/early-payment', require('./earlyPaymentDiscountRoutes'));

@@ -16,6 +16,8 @@ router.get('/', controller.list);
 router.post('/', createValidation, validate, controller.create);
 router.get('/aging', controller.aging); // must be before /:id/ledger to avoid route collision
 router.get('/:id/ledger', controller.getLedger);
+router.get('/:id/360', controller.view360);
+router.post('/:id/territory', controller.assignTerritory);
 router.post('/:id/payments', requirePermission(CUSTOMER_PAYMENT_RECORD), paymentValidation, validate, controller.recordPayment);
 
 module.exports = router;
