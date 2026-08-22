@@ -54,6 +54,44 @@ registerHandler('sweep.salesFollowUpReminders', async ({ companyId }) => {
   return { remindersSent: due.length };
 });
 
+registerHandler('sweep.marketingAutomationAdvance', async ({ companyId }) => {
+  const automationService = require('../services/salesMarketing/automationService');
+  const due = await automationService.findDueEnrollments(companyId);
+  for (const enrollment of due) {
+    // One enrollment failing (a deleted lead, a bad email) must never
+    // block the rest of the batch — same discipline every other
+    // per-company sweep here already holds to.
+    await automationService.advanceEnrollment(enrollment._id).catch((err) =>
+      logger.error({ err, enrollmentId: enrollment._id }, 'Failed to advance a marketing automation enrollment.'));
+  }
+  return { advanced: due.length };
+});
+
+registerHandler('sweep.invoiceOverdueTrigger', async ({ companyId }) => {
+  const automationService = require('../services/salesMarketing/automationService');
+  const Sale = require('../models/Sale');
+  // Same "measured from createdAt" convention reportingService's own AR
+  // aging already uses — Sale has no explicit due-date field (documented
+  // there, not re-litigated here).
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const overdue = await Sale.find({
+    companyId, dueAmount: { $gt: 0 }, writtenOff: false,
+    createdAt: { $lte: cutoff }, overdueAutomationFiredAt: null, customerId: { $ne: null },
+  });
+  for (const sale of overdue) {
+    await automationService.trigger(companyId, 'invoice_overdue', 'Customer', sale.customerId)
+      .catch((err) => logger.error({ err, saleId: sale._id }, 'Failed to fire invoice_overdue trigger.'));
+    sale.overdueAutomationFiredAt = new Date();
+    await sale.save();
+  }
+  return { triggered: overdue.length };
+});
+
+registerHandler('sweep.customerSegmentation', async ({ companyId }) => {
+  const customerSegmentationService = require('../services/salesMarketing/customerSegmentationService');
+  return customerSegmentationService.recomputeAllSegments(companyId);
+});
+
 registerHandler('sweep.fbrRetry', async ({ companyId }) => {
   const fbrService = require('../services/fbrService');
   const Company = require('../models/Company');
@@ -99,11 +137,17 @@ async function scheduleRepeatingJobs() {
   await q.add('sweep.fanout.documentExpiry', {}, { repeat: { pattern: '0 6 * * *' }, jobId: 'sweep-document-expiry-daily' }); // 06:00 UTC daily
   await q.add('sweep.fanout.fbrRetry', {}, { repeat: { pattern: '*/15 * * * *' }, jobId: 'sweep-fbr-retry-15min' }); // every 15 minutes — FBR outages are usually short
   await q.add('sweep.fanout.salesFollowUpReminders', {}, { repeat: { pattern: '*/30 * * * *' }, jobId: 'sweep-sales-followups-30min' }); // every 30 minutes — a follow-up reminder an hour late is still useful, no need for tighter polling
-  logger.info('Scheduled repeating sweeps: document-expiry (daily), FBR-retry (every 15m), sales follow-up reminders (every 30m).');
+  await q.add('sweep.fanout.marketingAutomationAdvance', {}, { repeat: { pattern: '*/15 * * * *' }, jobId: 'sweep-marketing-automation-15min' }); // the actual clock this engine runs on — a step due "in 2 days" can be up to 15 minutes late, matching the spec's own day-granularity examples
+  await q.add('sweep.fanout.invoiceOverdueTrigger', {}, { repeat: { pattern: '0 7 * * *' }, jobId: 'sweep-invoice-overdue-daily' }); // 07:00 UTC daily — a real day-granularity check, not a repeated same-day nag
+  await q.add('sweep.fanout.customerSegmentation', {}, { repeat: { pattern: '0 5 * * *' }, jobId: 'sweep-customer-segmentation-daily' }); // 05:00 UTC daily — segment membership doesn't need to be more real-time than "as of this morning"
+  logger.info('Scheduled repeating sweeps: document-expiry (daily), FBR-retry (every 15m), sales follow-up reminders (every 30m), marketing automation (every 15m), invoice-overdue trigger (daily), customer segmentation (daily).');
 }
 
 registerHandler('sweep.fanout.documentExpiry', () => enqueueForAllActiveCompanies('sweep.documentExpiry'));
 registerHandler('sweep.fanout.fbrRetry', () => enqueueForAllActiveCompanies('sweep.fbrRetry'));
 registerHandler('sweep.fanout.salesFollowUpReminders', () => enqueueForAllActiveCompanies('sweep.salesFollowUpReminders'));
+registerHandler('sweep.fanout.marketingAutomationAdvance', () => enqueueForAllActiveCompanies('sweep.marketingAutomationAdvance'));
+registerHandler('sweep.fanout.invoiceOverdueTrigger', () => enqueueForAllActiveCompanies('sweep.invoiceOverdueTrigger'));
+registerHandler('sweep.fanout.customerSegmentation', () => enqueueForAllActiveCompanies('sweep.customerSegmentation'));
 
 module.exports = { scheduleRepeatingJobs, enqueueForAllActiveCompanies };

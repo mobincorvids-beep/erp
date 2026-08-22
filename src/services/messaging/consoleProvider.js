@@ -18,4 +18,9 @@ async function sendEmail(to, subject, message) {
   return { success: true, provider: 'console' };
 }
 
-module.exports = { sendSms, sendEmail };
+async function sendWhatsapp(to, message) {
+  console.log(`[console-whatsapp-provider] would send to ${to}: "${message}"`);
+  return { success: true, provider: 'console' };
+}
+
+module.exports = { sendSms, sendEmail, sendWhatsapp };

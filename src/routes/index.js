@@ -37,6 +37,10 @@ router.use('/commissions', require('./commissionRoutes'));
 router.use('/sales-targets', require('./salesTargetRoutes'));
 router.use('/forecast', require('./forecastRoutes'));
 router.use('/field-visits', require('./fieldVisitRoutes'));
+router.use('/marketing-automation', require('./marketingAutomationRoutes'));
+router.use('/landing-pages', require('./landingPageRoutes'));
+router.use('/public/lead-forms', require('./publicLeadFormRoutes')); // no auth — public form submissions
+router.use('/social-leads', require('./socialLeadRoutes')); // mixed: /token is tenant-authed, /:slug/:platform is webhook-token-authed
 router.use('/units', require('./unitRoutes'));
 router.use('/budgets', require('./budgetRoutes'));
 router.use('/purchase-orders/early-payment', require('./earlyPaymentDiscountRoutes'));

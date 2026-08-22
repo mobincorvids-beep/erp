@@ -74,6 +74,16 @@ async function createLead(input) {
     companyId, branchId, name, source, createdBy,
     leadNumber: nextDocumentNumber('LD'),
   });
+
+  // Fires the 'lead_created' marketing automation trigger (spec §19) —
+  // deliberately fire-and-forget, same "the real operation matters more
+  // than the notification about it" principle the webhook/low-stock
+  // triggers already established: a company with no such automation
+  // configured, or a transient failure enrolling one, must never affect
+  // lead creation itself.
+  require('./automationService').trigger(companyId, 'lead_created', 'Lead', lead._id)
+    .catch((err) => console.error('Failed to fire lead_created automation trigger (lead itself was still created):', err.message));
+
   return rescoreLead(lead._id);
 }
 

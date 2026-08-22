@@ -99,20 +99,34 @@ async function sendCampaign(campaignId) {
   let failureCount = 0;
   const results = [];
 
+  // Only channels this app can actually deliver through a real transport
+  // (see services/messaging/) are sendable here. A channel like
+  // 'facebook'/'google'/'tiktok' — genuinely valid for TRACKING a
+  // campaign's source and attribution (see models/Campaign.js) — has no
+  // real ad-platform API integration in this codebase and no credentials
+  // to fabricate one against; rejecting it explicitly here is the honest
+  // behavior, not silently routing it through email and mislabeling the result.
+  if (!['sms', 'email', 'whatsapp'].includes(campaign.channel)) {
+    throw new Error(`Campaign channel "${campaign.channel}" cannot be sent directly by this app — sms/email/whatsapp are the only channels with a real delivery transport. Other channels are for tracking/attribution only.`);
+  }
+
   for (const customer of recipients) {
-    const result = campaign.channel === 'sms'
-      ? await messagingService.sendSms(customer.phone, campaign.message)
-      : await messagingService.sendEmail(customer.email, campaign.name, campaign.message);
+    let result;
+    if (campaign.channel === 'sms') result = await messagingService.sendSms(customer.phone, campaign.message);
+    else if (campaign.channel === 'whatsapp') result = await messagingService.sendWhatsapp(customer.whatsapp || customer.phone, campaign.message);
+    else result = await messagingService.sendEmail(customer.email, campaign.name, campaign.message);
 
     if (result.success) successCount++; else failureCount++;
     results.push({ customerId: customer._id, ...result });
   }
 
+  const activeProvider = { sms: messagingService.activeSmsProvider, email: messagingService.activeEmailProvider, whatsapp: messagingService.activeWhatsappProvider }[campaign.channel];
+
   campaign.status = 'sent';
   campaign.recipientCount = recipients.length;
   campaign.successCount = successCount;
   campaign.failureCount = failureCount;
-  campaign.provider = campaign.channel === 'sms' ? messagingService.activeSmsProvider() : messagingService.activeEmailProvider();
+  campaign.provider = activeProvider();
   campaign.sentAt = new Date();
   await campaign.save();
 

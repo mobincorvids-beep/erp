@@ -10,12 +10,19 @@
 const consoleProvider = require('./consoleProvider');
 const twilioProvider = require('./twilioProvider');
 const sendgridProvider = require('./sendgridProvider');
+const whatsappProvider = require('./whatsappProvider');
 
 function hasTwilioConfig() {
   return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER);
 }
 function hasSendGridConfig() {
   return !!(process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM_EMAIL);
+}
+// Distinct from hasTwilioConfig() — a WhatsApp sender is a separately
+// provisioned/approved Twilio number, not the plain SMS from-number (see
+// whatsappProvider.js's own comment on why this matters).
+function hasWhatsappConfig() {
+  return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_WHATSAPP_FROM_NUMBER);
 }
 
 /** @returns {Promise<{success: boolean, provider: string, error?: string}>} — never throws; a failed send is a normal, expected outcome for one recipient in a batch, not a reason to abort the whole campaign. */
@@ -40,7 +47,19 @@ async function sendEmail(to, subject, message) {
   }
 }
 
+/** Same contract as sendSms/sendEmail — never throws. */
+async function sendWhatsapp(to, message) {
+  if (!to) return { success: false, provider: 'none', error: 'No WhatsApp number on file for this customer.' };
+  try {
+    if (hasWhatsappConfig()) return await whatsappProvider.sendWhatsapp(to, message);
+    return await consoleProvider.sendWhatsapp(to, message);
+  } catch (err) {
+    return { success: false, provider: hasWhatsappConfig() ? 'twilio_whatsapp' : 'console', error: err.message };
+  }
+}
+
 function activeSmsProvider() { return hasTwilioConfig() ? 'twilio' : 'console'; }
 function activeEmailProvider() { return hasSendGridConfig() ? 'sendgrid' : 'console'; }
+function activeWhatsappProvider() { return hasWhatsappConfig() ? 'twilio_whatsapp' : 'console'; }
 
-module.exports = { sendSms, sendEmail, activeSmsProvider, activeEmailProvider };
+module.exports = { sendSms, sendEmail, sendWhatsapp, activeSmsProvider, activeEmailProvider, activeWhatsappProvider };

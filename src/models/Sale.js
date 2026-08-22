@@ -62,6 +62,10 @@ const saleSchema = new Schema({
   paidAmount: { type: Number, default: 0 },
   dueAmount: { type: Number, default: 0 },
   writtenOff: { type: Boolean, default: false }, // once true, dueAmount is permanently 0 — see badDebtService.writeOffReceivable
+  // Dedup marker for the 'invoice_overdue' marketing automation trigger
+  // (see queue/jobs.js's sweep) — the same "notify once, don't re-fire on
+  // every sweep run" convention Document expiry and low-stock already use.
+  overdueAutomationFiredAt: Date,
   writtenOffAt: { type: Date, default: null },
 
   // Real transaction-level foreign-currency denomination — the actual

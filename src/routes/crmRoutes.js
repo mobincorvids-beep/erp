@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const { requireAuth, scopeToCompany, requirePermission } = require('../middleware/auth');
 const { CRM_MANAGE } = require('../constants/permissions');
+const { CAMPAIGN_CHANNELS } = require('../constants/salesMarketing');
 const { validate } = require('../middleware/validate');
 const controller = require('../controllers/crmController');
 
@@ -31,7 +32,7 @@ router.post('/follow-ups/:id/complete', controller.completeFollowUp);
 router.get('/campaigns', controller.listCampaigns);
 router.post('/campaigns', requirePermission(CRM_MANAGE),
   body('name').isString().trim().notEmpty().withMessage('name is required.'),
-  body('channel').isIn(['sms', 'email']).withMessage('channel must be "sms" or "email".'),
+  body('channel').isIn(CAMPAIGN_CHANNELS).withMessage(`channel must be one of: ${CAMPAIGN_CHANNELS.join(', ')}.`),
   body('message').isString().trim().notEmpty().withMessage('message is required.'),
   validate, controller.createCampaign);
 router.post('/campaigns/:id/send', requirePermission(CRM_MANAGE), controller.sendCampaign);

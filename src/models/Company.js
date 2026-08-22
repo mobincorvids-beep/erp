@@ -54,6 +54,14 @@ const companySchema = new Schema({
     defaultPaymentAccountId: { type: Schema.Types.ObjectId, ref: 'Account', default: null },
   },
 
+  // A separate token from ecommerceConfig's above — deliberately, not
+  // reused, since these are two different external integrations with
+  // different scopes; sharing one secret between them would mean rotating
+  // one for a security reason silently breaks the other. Used by the
+  // social-lead inbound webhook (spec §23) — see
+  // middleware/socialLeadAuth.js and services/salesMarketing/socialLeadService.js.
+  socialLeadWebhookToken: { type: String, default: null },
+
   // Explicit chart-of-accounts wiring for the postings every module makes
   // automatically (COGS on a sale, inventory value on a GRN, payroll
   // expense, receivable/payable control accounts). Set automatically by
