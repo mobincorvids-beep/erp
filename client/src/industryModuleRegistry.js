@@ -46,4 +46,28 @@ export const INDUSTRY_MODULES = [
   { key: 'retail', path: '/retail', label: 'Retail', component: lazy(() => import('./pages/RetailPage').then((m) => ({ default: m.RetailPage }))) },
   { key: 'cafe', path: '/cafe', label: 'Cafe', component: lazy(() => import('./pages/CafePage').then((m) => ({ default: m.CafePage }))) },
   { key: 'toys_gifts', path: '/toys-gifts', label: 'Toys & Gifts', component: lazy(() => import('./pages/ToysGiftsPage').then((m) => ({ default: m.ToysGiftsPage }))) },
+
+  // The 21 industries that previously had a working backend and NO page —
+  // the single largest UI/UX gap flagged in the last audit. Closes it.
+  { key: 'agriculture', path: '/agriculture', label: 'Agriculture', component: lazy(() => import('./pages/AgriculturePage').then((m) => ({ default: m.AgriculturePage }))) },
+  { key: 'automobile', path: '/automobile', label: 'Automobile', component: lazy(() => import('./pages/AutomobilePage').then((m) => ({ default: m.AutomobilePage }))) },
+  { key: 'car_rental', path: '/car-rental', label: 'Car Rental', component: lazy(() => import('./pages/CarRentalPage').then((m) => ({ default: m.CarRentalPage }))) },
+  { key: 'construction', path: '/construction', label: 'Construction', component: lazy(() => import('./pages/ConstructionPage').then((m) => ({ default: m.ConstructionPage }))) },
+  { key: 'courier', path: '/courier', label: 'Courier', component: lazy(() => import('./pages/CourierPage').then((m) => ({ default: m.CourierPage }))) },
+  { key: 'dairy', path: '/dairy', label: 'Dairy', component: lazy(() => import('./pages/DairyPage').then((m) => ({ default: m.DairyPage }))) },
+  { key: 'hajj_umrah', path: '/hajj-umrah', label: 'Hajj/Umrah', component: lazy(() => import('./pages/HajjUmrahPage').then((m) => ({ default: m.HajjUmrahPage }))) },
+  { key: 'housing_society', path: '/housing-society', label: 'Housing Society', component: lazy(() => import('./pages/HousingSocietyPage').then((m) => ({ default: m.HousingSocietyPage }))) },
+  { key: 'import_export', path: '/import-export', label: 'Import/Export', component: lazy(() => import('./pages/ImportExportPage').then((m) => ({ default: m.ImportExportPage }))) },
+  { key: 'insurance', path: '/insurance', label: 'Insurance', component: lazy(() => import('./pages/InsurancePage').then((m) => ({ default: m.InsurancePage }))) },
+  { key: 'logistics', path: '/logistics', label: 'Logistics', component: lazy(() => import('./pages/LogisticsPage').then((m) => ({ default: m.LogisticsPage }))) },
+  { key: 'media_entertainment', path: '/media-entertainment', label: 'Events & Ticketing', component: lazy(() => import('./pages/EventTicketingPage').then((m) => ({ default: m.EventTicketingPage }))) },
+  { key: 'ngo', path: '/ngo', label: 'NGO', component: lazy(() => import('./pages/NgoPage').then((m) => ({ default: m.NgoPage }))) },
+  { key: 'petrol_pump', path: '/petrol-pump', label: 'Petrol Pump', component: lazy(() => import('./pages/PetrolPumpPage').then((m) => ({ default: m.PetrolPumpPage }))) },
+  { key: 'pharmaceutical', path: '/pharmaceutical', label: 'Batch Recalls', component: lazy(() => import('./pages/PharmaceuticalPage').then((m) => ({ default: m.PharmaceuticalPage }))) },
+  { key: 'professional_services', path: '/professional-services', label: 'Time & Billing', component: lazy(() => import('./pages/ProfessionalServicesPage').then((m) => ({ default: m.ProfessionalServicesPage }))) },
+  { key: 'real_estate', path: '/real-estate', label: 'Real Estate', component: lazy(() => import('./pages/RealEstatePage').then((m) => ({ default: m.RealEstatePage }))) },
+  { key: 'sports', path: '/sports', label: 'Sports', component: lazy(() => import('./pages/SportsPage').then((m) => ({ default: m.SportsPage }))) },
+  { key: 'telecom', path: '/telecom', label: 'Telecom', component: lazy(() => import('./pages/TelecomPage').then((m) => ({ default: m.TelecomPage }))) },
+  { key: 'travel', path: '/travel', label: 'Travel', component: lazy(() => import('./pages/TravelPage').then((m) => ({ default: m.TravelPage }))) },
+  { key: 'warehouse_3pl', path: '/warehouse-3pl', label: '3PL Warehouse', component: lazy(() => import('./pages/Warehouse3plPage').then((m) => ({ default: m.Warehouse3plPage }))) },
 ];

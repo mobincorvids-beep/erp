@@ -23,6 +23,14 @@ const purchaseOrderSchema = new Schema({
   totalAmount: { type: Number, default: 0 },
   paidAmount: { type: Number, default: 0 },
   dueAmount: { type: Number, default: 0 }, // set to totalAmount once received; reduced by SupplierPayment allocations
+
+  // Optional early-payment trade-credit terms (spec §10 "early-payment
+  // discount") — see services/earlyPaymentDiscountService.js. Unset by
+  // default, meaning every existing PO and every existing caller of
+  // purchaseService.createPurchaseOrder is completely unaffected.
+  paymentTermsDays: Number,
+  earlyPaymentDiscountPercent: Number,
+  earlyPaymentDiscountDays: Number,
   userId: { type: Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
 
