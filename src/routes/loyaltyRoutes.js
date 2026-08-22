@@ -20,5 +20,6 @@ router.put('/program', requirePermission(LOYALTY_MANAGE),
 router.post('/customers/:customerId/redeem', body('points').isFloat({ gt: 0 }).withMessage('points must be greater than zero.'), validate, controller.redeem);
 router.post('/customers/:customerId/reverse', body('points').isFloat({ gt: 0 }).withMessage('points must be greater than zero.'), validate, controller.reverseRedemption);
 router.get('/customers/:customerId/history', controller.history);
+router.get('/customers/:customerId/tier', controller.tier);
 
 module.exports = router;

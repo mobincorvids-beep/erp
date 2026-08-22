@@ -46,6 +46,17 @@ async function checkout(req, res) {
       console.error(`Loyalty earn failed for sale ${sale.invoiceNumber}:`, err.message);
     });
 
+    // Same fire-and-forget shape — if this customer was referred and this
+    // is their qualifying purchase, reward whoever referred them (spec
+    // §29). A no-op for the overwhelming majority of sales (an
+    // un-referred customer, or one already rewarded), and never allowed
+    // to affect the checkout that already succeeded.
+    if (sale.customerId) {
+      require('../services/salesMarketing/referralService').rewardOnQualifyingPurchase(req.companyId, sale.customerId, sale._id).catch((err) => {
+        console.error(`Referral reward check failed for sale ${sale.invoiceNumber}:`, err.message);
+      });
+    }
+
     res.status(201).json(sale);
   } catch (err) {
     res.status(400).json({ error: err.message });

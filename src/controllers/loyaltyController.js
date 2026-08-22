@@ -50,4 +50,9 @@ async function history(req, res) {
   res.json(rows);
 }
 
-module.exports = { getProgram, upsertProgram, redeem, reverseRedemption, history };
+async function tier(req, res) {
+  const program = await LoyaltyProgram.findOne({ companyId: req.companyId, isActive: true });
+  res.json(await loyaltyService.currentTier(req.params.customerId, program));
+}
+
+module.exports = { getProgram, upsertProgram, redeem, reverseRedemption, history, tier };

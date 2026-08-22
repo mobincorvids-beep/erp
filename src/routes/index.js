@@ -41,6 +41,9 @@ router.use('/marketing-automation', require('./marketingAutomationRoutes'));
 router.use('/landing-pages', require('./landingPageRoutes'));
 router.use('/public/lead-forms', require('./publicLeadFormRoutes')); // no auth — public form submissions
 router.use('/social-leads', require('./socialLeadRoutes')); // mixed: /token is tenant-authed, /:slug/:platform is webhook-token-authed
+router.use('/coupons', require('./couponRoutes'));
+router.use('/promotions', require('./promotionRoutes'));
+router.use('/referrals', require('./referralRoutes'));
 router.use('/units', require('./unitRoutes'));
 router.use('/budgets', require('./budgetRoutes'));
 router.use('/purchase-orders/early-payment', require('./earlyPaymentDiscountRoutes'));
