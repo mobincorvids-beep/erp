@@ -15,4 +15,9 @@ router.post('/sales-orders', controller.createSalesOrder);
 router.post('/:id/convert-to-invoice', controller.convertToInvoice);
 router.post('/:id/cancel', controller.cancel);
 
+// CPQ (spec §8) — read-only margin check, and the actual discount-approval
+// gate (spec §10) reusing the core Workflow Engine. See cpqService.js.
+router.get('/:id/evaluate-margin', controller.evaluateMargin);
+router.post('/:id/request-discount-approval', controller.requestDiscountApproval);
+
 module.exports = router;

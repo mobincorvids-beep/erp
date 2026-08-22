@@ -1,5 +1,6 @@
 const Sale = require('../models/Sale');
 const salesOrderService = require('../services/salesOrderService');
+const cpqService = require('../services/salesMarketing/cpqService');
 
 async function listQuotations(req, res) {
   const docs = await Sale.find({ companyId: req.companyId, saleType: 'quotation' }).sort({ createdAt: -1 }).limit(200);
@@ -60,4 +61,23 @@ async function cancel(req, res) {
   }
 }
 
-module.exports = { listQuotations, listSalesOrders, createQuotation, createSalesOrder, acceptQuotation, convertToInvoice, cancel };
+async function evaluateMargin(req, res) {
+  try {
+    res.json(await cpqService.evaluateMargin(req.params.id));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+async function requestDiscountApproval(req, res) {
+  try {
+    res.status(201).json(await cpqService.requestDiscountApproval(req.params.id, req.auth.userId));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+module.exports = {
+  listQuotations, listSalesOrders, createQuotation, createSalesOrder, acceptQuotation, convertToInvoice, cancel,
+  evaluateMargin, requestDiscountApproval,
+};

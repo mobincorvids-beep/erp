@@ -23,6 +23,14 @@ const companySchema = new Schema({
   // a single enum. See taxComplianceService for the dispatch logic.
   taxAuthorities: [{ type: String, enum: ['fbr', 'srb', 'pra', 'kpra', 'bra'] }],
 
+  // Optional CPQ/quotation guardrail (spec §8/§9's "minimum margin" /
+  // "salesperson discount limits") — unset means no margin check is
+  // enforced, the exact behavior every quotation had before
+  // cpqService.evaluateMargin existed. Company-wide default; a specific
+  // PricingRule's own minMarginPercent (see models/PricingRule.js)
+  // overrides this for the product/customer it targets.
+  defaultMinMarginPercent: { type: Number, default: null },
+
   // Multi-company grouping — a holding business running several registered
   // companies (e.g. separate legal entities per city) that wants a combined
   // view. Self-referencing rather than a separate "Group" collection: the
