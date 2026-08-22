@@ -92,6 +92,41 @@ registerHandler('sweep.customerSegmentation', async ({ companyId }) => {
   return customerSegmentationService.recomputeAllSegments(companyId);
 });
 
+registerHandler('sweep.subscriptionTrialActivation', async ({ companyId }) => {
+  const subscriptionService = require('../services/salesMarketing/subscriptionService');
+  const ended = await subscriptionService.findEndedTrials(companyId);
+  let activated = 0;
+  for (const sub of ended) {
+    await subscriptionService.activateAfterTrial(sub._id)
+      .then(() => { activated += 1; })
+      .catch((err) => logger.error({ err, subscriptionId: sub._id }, 'Failed to activate subscription after trial.'));
+  }
+  return { activated };
+});
+
+registerHandler('sweep.contractExpiry', async ({ companyId }) => {
+  const contractService = require('../services/salesMarketing/contractService');
+  const notificationService = require('../services/notificationService');
+  const Role = require('../models/Role');
+  const expiring = await contractService.findExpiring(companyId);
+  if (expiring.length === 0) return { expired: 0 };
+
+  const roles = await Role.find({ companyId, permissions: { $in: ['contracts.manage', '*'] } });
+  for (const contract of expiring) {
+    contract.status = 'expired';
+    await contract.save();
+    for (const role of roles) {
+      await notificationService.notify({
+        companyId, roleId: role._id, type: 'contract_expired',
+        title: `Contract ${contract.contractNumber} has expired`,
+        message: `Contract ${contract.contractNumber}'s period ended ${contract.periodEnd.toDateString()}.`,
+        entityType: 'SalesContract', entityId: contract._id,
+      }).catch(() => {});
+    }
+  }
+  return { expired: expiring.length };
+});
+
 registerHandler('sweep.fbrRetry', async ({ companyId }) => {
   const fbrService = require('../services/fbrService');
   const Company = require('../models/Company');
@@ -140,7 +175,9 @@ async function scheduleRepeatingJobs() {
   await q.add('sweep.fanout.marketingAutomationAdvance', {}, { repeat: { pattern: '*/15 * * * *' }, jobId: 'sweep-marketing-automation-15min' }); // the actual clock this engine runs on — a step due "in 2 days" can be up to 15 minutes late, matching the spec's own day-granularity examples
   await q.add('sweep.fanout.invoiceOverdueTrigger', {}, { repeat: { pattern: '0 7 * * *' }, jobId: 'sweep-invoice-overdue-daily' }); // 07:00 UTC daily — a real day-granularity check, not a repeated same-day nag
   await q.add('sweep.fanout.customerSegmentation', {}, { repeat: { pattern: '0 5 * * *' }, jobId: 'sweep-customer-segmentation-daily' }); // 05:00 UTC daily — segment membership doesn't need to be more real-time than "as of this morning"
-  logger.info('Scheduled repeating sweeps: document-expiry (daily), FBR-retry (every 15m), sales follow-up reminders (every 30m), marketing automation (every 15m), invoice-overdue trigger (daily), customer segmentation (daily).');
+  await q.add('sweep.fanout.subscriptionTrialActivation', {}, { repeat: { pattern: '0 6 * * *' }, jobId: 'sweep-subscription-trial-activation-daily' }); // 06:00 UTC daily — a trial ending is a day-granularity event, not something that needs minute-level polling
+  await q.add('sweep.fanout.contractExpiry', {}, { repeat: { pattern: '0 6 * * *' }, jobId: 'sweep-contract-expiry-daily' });
+  logger.info('Scheduled repeating sweeps: document-expiry (daily), FBR-retry (every 15m), sales follow-up reminders (every 30m), marketing automation (every 15m), invoice-overdue trigger (daily), customer segmentation (daily), subscription trial activation (daily), contract expiry (daily).');
 }
 
 registerHandler('sweep.fanout.documentExpiry', () => enqueueForAllActiveCompanies('sweep.documentExpiry'));
@@ -149,5 +186,7 @@ registerHandler('sweep.fanout.salesFollowUpReminders', () => enqueueForAllActive
 registerHandler('sweep.fanout.marketingAutomationAdvance', () => enqueueForAllActiveCompanies('sweep.marketingAutomationAdvance'));
 registerHandler('sweep.fanout.invoiceOverdueTrigger', () => enqueueForAllActiveCompanies('sweep.invoiceOverdueTrigger'));
 registerHandler('sweep.fanout.customerSegmentation', () => enqueueForAllActiveCompanies('sweep.customerSegmentation'));
+registerHandler('sweep.fanout.subscriptionTrialActivation', () => enqueueForAllActiveCompanies('sweep.subscriptionTrialActivation'));
+registerHandler('sweep.fanout.contractExpiry', () => enqueueForAllActiveCompanies('sweep.contractExpiry'));
 
 module.exports = { scheduleRepeatingJobs, enqueueForAllActiveCompanies };

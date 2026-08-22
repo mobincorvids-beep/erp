@@ -44,6 +44,10 @@ router.use('/social-leads', require('./socialLeadRoutes')); // mixed: /token is 
 router.use('/coupons', require('./couponRoutes'));
 router.use('/promotions', require('./promotionRoutes'));
 router.use('/referrals', require('./referralRoutes'));
+router.use('/partners', require('./partnerRoutes'));
+router.use('/b2b', require('./b2bRoutes'));
+router.use('/subscriptions', require('./subscriptionRoutes'));
+router.use('/contracts', require('./contractRoutes'));
 router.use('/units', require('./unitRoutes'));
 router.use('/budgets', require('./budgetRoutes'));
 router.use('/purchase-orders/early-payment', require('./earlyPaymentDiscountRoutes'));
